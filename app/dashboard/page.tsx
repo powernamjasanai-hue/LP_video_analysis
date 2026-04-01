@@ -25,12 +25,29 @@ function getDateFilter(period: string): string | null {
 }
 
 export default async function DashboardPage({ searchParams }: Props) {
+  // 등록된 영상 정보 (videos 테이블)
+  const { data: registeredVideos } = await supabaseAdmin
+    .from('videos')
+    .select('video_id, title, thumbnail_url')
+    .order('created_at', { ascending: false })
+
+  // 세션 데이터에 있는 video_id도 포함
   const { data: videoRows } = await supabaseAdmin
     .from('view_sessions')
     .select('video_id')
 
-  const videoIds = Array.from(new Set((videoRows || []).map((r) => r.video_id)))
-  const selectedVideo = searchParams.videoId || videoIds[0] || ''
+  const sessionVideoIds = Array.from(new Set((videoRows || []).map((r) => r.video_id)))
+  const registeredMap = new Map((registeredVideos || []).map((v) => [v.video_id, v]))
+
+  // 등록된 영상 우선, 미등록 영상도 포함
+  const videoList = [
+    ...(registeredVideos || []),
+    ...sessionVideoIds
+      .filter((id) => !registeredMap.has(id))
+      .map((id) => ({ video_id: id, title: id, thumbnail_url: null })),
+  ]
+
+  const selectedVideo = searchParams.videoId || videoList[0]?.video_id || ''
   const period = searchParams.period || '30d'
   const dateFrom = getDateFilter(period)
 
@@ -105,10 +122,10 @@ export default async function DashboardPage({ searchParams }: Props) {
       <header className="sticky top-0 z-10 bg-white/80 backdrop-blur-sm border-b border-border">
         <div className="px-8 py-4 flex items-center justify-between">
           <h2 className="text-[16px] font-semibold text-foreground">대시보드</h2>
-          {videoIds.length > 0 && (
+          {videoList.length > 0 && (
             <div className="flex items-center gap-3">
               <Suspense fallback={null}>
-                <VideoSelector videoIds={videoIds} />
+                <VideoSelector videos={videoList} />
               </Suspense>
               <Separator orientation="vertical" className="h-8" />
               <Suspense fallback={null}>
@@ -121,7 +138,7 @@ export default async function DashboardPage({ searchParams }: Props) {
 
       {/* Content */}
       <main className="px-8 py-8">
-        {videoIds.length === 0 ? (
+        {videoList.length === 0 ? (
           <div className="flex items-center justify-center min-h-[60vh]">
             <div className="text-center">
               <div className="w-16 h-16 rounded-full bg-muted flex items-center justify-center mx-auto mb-4">

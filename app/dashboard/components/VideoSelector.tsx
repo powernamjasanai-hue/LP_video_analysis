@@ -9,10 +9,16 @@ import {
   SelectValue,
 } from '@/components/ui/select'
 
-export default function VideoSelector({ videoIds }: { videoIds: string[] }) {
+interface VideoInfo {
+  video_id: string
+  title: string
+  thumbnail_url?: string
+}
+
+export default function VideoSelector({ videos }: { videos: VideoInfo[] }) {
   const router = useRouter()
   const searchParams = useSearchParams()
-  const current = searchParams.get('videoId') || videoIds[0] || ''
+  const current = searchParams.get('videoId') || videos[0]?.video_id || ''
 
   function onChange(value: string) {
     const params = new URLSearchParams(searchParams.toString())
@@ -22,13 +28,13 @@ export default function VideoSelector({ videoIds }: { videoIds: string[] }) {
 
   return (
     <Select value={current} onValueChange={onChange}>
-      <SelectTrigger className="w-[180px] h-9 text-[13px] bg-white">
+      <SelectTrigger className="w-[280px] h-9 text-[13px] bg-white">
         <SelectValue placeholder="영상 선택" />
       </SelectTrigger>
       <SelectContent>
-        {videoIds.map((id) => (
-          <SelectItem key={id} value={id} className="text-[13px]">
-            {id}
+        {videos.map((v) => (
+          <SelectItem key={v.video_id} value={v.video_id} className="text-[13px]">
+            <span className="truncate">{v.title || v.video_id}</span>
           </SelectItem>
         ))}
       </SelectContent>
