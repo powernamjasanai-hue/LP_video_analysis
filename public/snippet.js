@@ -178,8 +178,8 @@
     for (var i = 0; i < keys.length; i++) {
       var state = trackedPlayers[keys[i]];
 
-      // Skip if never played
-      if (state.totalWatchTime === 0 && state.currentTime === 0) continue;
+      // Skip if never played at all
+      if (state.totalWatchTime === 0 && state.currentTime === 0 && !state.isPlaying) continue;
 
       // Stop polling
       if (state.pollInterval) {

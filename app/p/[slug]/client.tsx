@@ -11,9 +11,15 @@ interface TextContent {
   text: string
   fontSize: number
   fontWeight: 'normal' | 'bold'
+  fontFamily: 'pretendard' | 'noto-serif'
   align: 'left' | 'center' | 'right'
   color: string
 }
+
+const FONT_MAP = {
+  pretendard: '"Pretendard Variable", Pretendard, sans-serif',
+  'noto-serif': '"Noto Serif KR", serif',
+} as const
 
 interface ButtonContent {
   text: string
@@ -91,6 +97,7 @@ export default function PublicPageClient({ page }: { page: LandingPage }) {
                   style={{
                     fontSize: mobileFontSize,
                     fontWeight: c.fontWeight,
+                    fontFamily: FONT_MAP[c.fontFamily || 'pretendard'],
                     textAlign: c.align,
                     color: c.color,
                   }}

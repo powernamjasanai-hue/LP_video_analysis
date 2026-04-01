@@ -31,6 +31,13 @@
     allowfullscreen>
   </iframe>
 
-  <script src="/snippet.js" data-api="http://localhost:3000/api/track" async></script>
+  <script>
+    // 현재 호스트 기준으로 API URL 자동 설정
+    var s = document.createElement('script');
+    s.src = '/snippet.js';
+    s.setAttribute('data-api', location.origin + '/api/track');
+    s.async = true;
+    document.body.appendChild(s);
+  </script>
 </body>
 </html>
