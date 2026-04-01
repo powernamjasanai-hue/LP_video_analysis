@@ -113,6 +113,15 @@ export default function VideosPage() {
     setRegistering(false)
   }
 
+  async function moveVideoProject(videoId: string, projectId: string | null) {
+    await fetch('/api/videos', {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ video_id: videoId, project_id: projectId }),
+    })
+    fetchAll()
+  }
+
   async function deleteVideo(vid: string) {
     if (!confirm('이 영상을 삭제할까요?')) return
     await fetch('/api/videos', {
@@ -291,12 +300,14 @@ export default function VideosPage() {
                             <VideoCard
                               key={v.video_id}
                               video={v}
+                              projects={projects}
                               expandedCode={expandedCode}
                               setExpandedCode={setExpandedCode}
                               copied={copied}
                               copyToClipboard={copyToClipboard}
                               getFullCode={getFullCode}
                               deleteVideo={deleteVideo}
+                              onMoveProject={moveVideoProject}
                             />
                           ))
                         )}
@@ -318,12 +329,14 @@ export default function VideosPage() {
                       <VideoCard
                         key={v.video_id}
                         video={v}
+                        projects={projects}
                         expandedCode={expandedCode}
                         setExpandedCode={setExpandedCode}
                         copied={copied}
                         copyToClipboard={copyToClipboard}
                         getFullCode={getFullCode}
                         deleteVideo={deleteVideo}
+                        onMoveProject={moveVideoProject}
                       />
                     ))}
                   </div>
@@ -356,20 +369,24 @@ export default function VideosPage() {
 // ===== 영상 카드 컴포넌트 =====
 function VideoCard({
   video: v,
+  projects,
   expandedCode,
   setExpandedCode,
   copied,
   copyToClipboard,
   getFullCode,
   deleteVideo,
+  onMoveProject,
 }: {
   video: Video
+  projects: Project[]
   expandedCode: string | null
   setExpandedCode: (id: string | null) => void
   copied: string | null
   copyToClipboard: (text: string, id: string) => void
   getFullCode: (vid: string) => string
   deleteVideo: (vid: string) => void
+  onMoveProject: (videoId: string, projectId: string | null) => void
 }) {
   return (
     <Card className="bg-white border-border/60 shadow-none hover:shadow-sm transition-shadow">
@@ -391,7 +408,16 @@ function VideoCard({
             <p className="text-[11px] text-muted-foreground mt-0.5">{v.channel_name}</p>
             <div className="flex items-center gap-2 mt-1.5">
               <span className="text-[11px] text-muted-foreground">{v.session_count > 0 ? `${v.session_count}회 시청` : '데이터 없음'}</span>
-              <span className="text-[10px] font-mono text-muted-foreground/60">{v.video_id}</span>
+              <select
+                value={v.project_id || ''}
+                onChange={(e) => onMoveProject(v.video_id, e.target.value || null)}
+                className="h-6 px-1.5 rounded border border-input bg-background text-[10px] text-muted-foreground focus:outline-none cursor-pointer"
+              >
+                <option value="">미분류</option>
+                {projects.map((p) => (
+                  <option key={p.id} value={p.id}>{p.name}</option>
+                ))}
+              </select>
             </div>
           </div>
           <div className="flex items-start gap-1 shrink-0">

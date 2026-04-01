@@ -94,6 +94,26 @@ export async function POST(request: Request) {
   }
 }
 
+// PATCH: 영상 프로젝트 이동
+export async function PATCH(request: Request) {
+  try {
+    const { video_id, project_id } = await request.json()
+
+    const { error } = await supabaseAdmin
+      .from('videos')
+      .update({ project_id: project_id || null })
+      .eq('video_id', video_id)
+
+    if (error) {
+      return Response.json({ error: error.message }, { status: 500 })
+    }
+
+    return Response.json({ ok: true })
+  } catch {
+    return Response.json({ error: 'invalid request' }, { status: 400 })
+  }
+}
+
 // DELETE: 영상 삭제
 export async function DELETE(request: Request) {
   try {
