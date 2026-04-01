@@ -46,6 +46,17 @@ interface Section {
   content: VideoContent | TextContent | ButtonContent | SpacerContent
 }
 
+interface HeaderFooter {
+  enabled: boolean
+  text: string
+  fontSize: number
+  fontFamily: 'pretendard' | 'noto-serif'
+  bgColor: string
+  textColor: string
+  align: 'left' | 'center' | 'right'
+  links: { text: string; url: string }[]
+}
+
 interface LandingPage {
   id: string
   title: string
@@ -55,10 +66,34 @@ interface LandingPage {
   published: boolean
   bg_color: string
   max_width: number
+  header?: HeaderFooter
+  footer?: HeaderFooter
 }
 
 function genId() {
   return crypto.randomUUID()
+}
+
+const defaultHeader: HeaderFooter = {
+  enabled: false,
+  text: '사이트 이름',
+  fontSize: 16,
+  fontFamily: 'pretendard',
+  bgColor: '#ffffff',
+  textColor: '#000000',
+  align: 'left',
+  links: [],
+}
+
+const defaultFooter: HeaderFooter = {
+  enabled: false,
+  text: '© 2026 All rights reserved.',
+  fontSize: 13,
+  fontFamily: 'pretendard',
+  bgColor: '#f5f5f5',
+  textColor: '#666666',
+  align: 'center',
+  links: [],
 }
 
 const SECTION_TYPE_LABEL: Record<SectionType, string> = {
@@ -68,7 +103,6 @@ const SECTION_TYPE_LABEL: Record<SectionType, string> = {
   spacer: '여백',
 }
 
-// ── 기본 섹션 템플릿 ──
 function defaultSection(type: SectionType): Section {
   switch (type) {
     case 'video':
@@ -101,8 +135,9 @@ export default function PageEditorPage() {
   const [saved, setSaved] = useState(false)
   const [copied, setCopied] = useState(false)
   const [editingSection, setEditingSection] = useState<string | null>(null)
+  // 'header' | 'footer' | null - 오른쪽 패널에서 편집
+  const [editingHF, setEditingHF] = useState<'header' | 'footer' | null>(null)
 
-  // 드래그 상태
   const dragItem = useRef<number | null>(null)
   const dragOverItem = useRef<number | null>(null)
   const [dragOverIndex, setDragOverIndex] = useState<number | null>(null)
@@ -111,8 +146,15 @@ export default function PageEditorPage() {
     fetch(`/api/pages/${pageId}`)
       .then((r) => r.json())
       .then((d) => {
-        if (d.page) setPage(d.page)
-        else router.push('/dashboard/pages')
+        if (d.page) {
+          // 기존 데이터에 header/footer 없으면 기본값
+          const p = d.page as LandingPage
+          if (!p.header) p.header = { ...defaultHeader }
+          if (!p.footer) p.footer = { ...defaultFooter }
+          setPage(p)
+        } else {
+          router.push('/dashboard/pages')
+        }
       })
   }, [pageId, router])
 
@@ -121,14 +163,29 @@ export default function PageEditorPage() {
       if (!page) return
       setSaving(true)
       setSaved(false)
-      const body = data || { title: page.title, slug: page.slug, folder: page.folder, sections: page.sections, published: true, bg_color: page.bg_color, max_width: page.max_width }
+      const body = data || {
+        title: page.title,
+        slug: page.slug,
+        folder: page.folder,
+        sections: page.sections,
+        published: true,
+        bg_color: page.bg_color,
+        max_width: page.max_width,
+        header: page.header,
+        footer: page.footer,
+      }
       const res = await fetch(`/api/pages/${pageId}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(body),
       })
       const result = await res.json()
-      if (result.page) setPage(result.page)
+      if (result.page) {
+        const p = result.page as LandingPage
+        if (!p.header) p.header = { ...defaultHeader }
+        if (!p.footer) p.footer = { ...defaultFooter }
+        setPage(p)
+      }
       setSaving(false)
       setSaved(true)
       setTimeout(() => setSaved(false), 2000)
@@ -152,6 +209,7 @@ export default function PageEditorPage() {
     }
     setPage({ ...page, sections })
     setEditingSection(section.id)
+    setEditingHF(null)
   }
 
   function updateSection(id: string, content: Section['content']) {
@@ -178,48 +236,30 @@ export default function PageEditorPage() {
     setPage({ ...page, sections })
   }
 
-  // ── 드래그앤드롭 ──
-  function handleDragStart(index: number) {
-    dragItem.current = index
-  }
-
-  function handleDragOver(e: React.DragEvent, index: number) {
-    e.preventDefault()
-    dragOverItem.current = index
-    setDragOverIndex(index)
-  }
-
+  function handleDragStart(index: number) { dragItem.current = index }
+  function handleDragOver(e: React.DragEvent, index: number) { e.preventDefault(); dragOverItem.current = index; setDragOverIndex(index) }
   function handleDragEnd() {
-    if (!page || dragItem.current === null || dragOverItem.current === null) {
-      setDragOverIndex(null)
-      return
-    }
+    if (!page || dragItem.current === null || dragOverItem.current === null) { setDragOverIndex(null); return }
     const sections = [...page.sections]
     const [removed] = sections.splice(dragItem.current, 1)
     sections.splice(dragOverItem.current, 0, removed)
     setPage({ ...page, sections })
-    dragItem.current = null
-    dragOverItem.current = null
-    setDragOverIndex(null)
+    dragItem.current = null; dragOverItem.current = null; setDragOverIndex(null)
   }
 
   const selectedSection = page?.sections.find((s) => s.id === editingSection) || null
+  const header = page?.header || defaultHeader
+  const footer = page?.footer || defaultFooter
 
   if (!page) {
-    return (
-      <div className="flex items-center justify-center h-screen">
-        <p className="text-muted-foreground">로딩 중...</p>
-      </div>
-    )
+    return <div className="flex items-center justify-center h-screen"><p className="text-muted-foreground">로딩 중...</p></div>
   }
 
   return (
     <div className="flex h-screen overflow-hidden">
       {/* ── 왼쪽: 섹션 추가 패널 ── */}
       <div className="w-[180px] border-r bg-white p-4 flex flex-col gap-3 shrink-0 overflow-auto">
-        <h3 className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wider">
-          섹션 추가
-        </h3>
+        <h3 className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wider">섹션 추가</h3>
         {([
           { type: 'video' as const, label: '영상', icon: '▶' },
           { type: 'text' as const, label: '텍스트', icon: 'T' },
@@ -238,39 +278,39 @@ export default function PageEditorPage() {
 
         <div className="border-t my-1" />
 
-        <h3 className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wider">
-          페이지 설정
-        </h3>
+        <h3 className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wider">헤더 / 풋터</h3>
+        <button
+          onClick={() => { setEditingHF('header'); setEditingSection(null) }}
+          className={`flex items-center gap-2 px-3 py-2 text-sm rounded-lg border transition-colors ${
+            header.enabled ? 'border-blue-400 text-blue-600 bg-blue-50' : 'border-dashed border-muted-foreground/30 text-muted-foreground hover:border-foreground hover:text-foreground'
+          }`}
+        >
+          <span className="w-5 text-center text-xs">▬</span>
+          헤더 {header.enabled ? '(ON)' : ''}
+        </button>
+        <button
+          onClick={() => { setEditingHF('footer'); setEditingSection(null) }}
+          className={`flex items-center gap-2 px-3 py-2 text-sm rounded-lg border transition-colors ${
+            footer.enabled ? 'border-blue-400 text-blue-600 bg-blue-50' : 'border-dashed border-muted-foreground/30 text-muted-foreground hover:border-foreground hover:text-foreground'
+          }`}
+        >
+          <span className="w-5 text-center text-xs">▬</span>
+          풋터 {footer.enabled ? '(ON)' : ''}
+        </button>
 
+        <div className="border-t my-1" />
+
+        <h3 className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wider">페이지 설정</h3>
         <div>
           <label className="text-[11px] text-muted-foreground">배경색</label>
           <div className="flex items-center gap-2 mt-1">
-            <input
-              type="color"
-              value={page.bg_color}
-              onChange={(e) => updatePage({ bg_color: e.target.value })}
-              className="w-7 h-7 rounded border cursor-pointer"
-            />
-            <input
-              type="text"
-              value={page.bg_color}
-              onChange={(e) => updatePage({ bg_color: e.target.value })}
-              className="flex-1 px-2 py-1 text-[11px] border rounded"
-            />
+            <input type="color" value={page.bg_color} onChange={(e) => updatePage({ bg_color: e.target.value })} className="w-7 h-7 rounded border cursor-pointer" />
+            <input type="text" value={page.bg_color} onChange={(e) => updatePage({ bg_color: e.target.value })} className="flex-1 px-2 py-1 text-[11px] border rounded" />
           </div>
         </div>
-
         <div>
           <label className="text-[11px] text-muted-foreground">최대 너비 (px)</label>
-          <input
-            type="number"
-            value={page.max_width}
-            onChange={(e) => updatePage({ max_width: Number(e.target.value) })}
-            className="w-full px-2 py-1 text-[11px] border rounded mt-1"
-            min={320}
-            max={1200}
-            step={10}
-          />
+          <input type="number" value={page.max_width} onChange={(e) => updatePage({ max_width: Number(e.target.value) })} className="w-full px-2 py-1 text-[11px] border rounded mt-1" min={320} max={1200} step={10} />
         </div>
       </div>
 
@@ -278,70 +318,48 @@ export default function PageEditorPage() {
       <div className="flex-1 overflow-auto bg-[#f0f0f0] p-6">
         {/* 상단 바 */}
         <div className="max-w-2xl mx-auto mb-4 flex items-center gap-3">
-          <button
-            onClick={() => router.push('/dashboard/pages')}
-            className="text-sm text-muted-foreground hover:text-foreground"
-          >
-            ← 목록
-          </button>
-          <input
-            type="text"
-            value={page.title}
-            onChange={(e) => updatePage({ title: e.target.value })}
-            className="flex-1 bg-transparent text-lg font-bold focus:outline-none border-b border-transparent focus:border-foreground"
-            placeholder="페이지 제목"
-          />
+          <button onClick={() => router.push('/dashboard/pages')} className="text-sm text-muted-foreground hover:text-foreground">← 목록</button>
+          <input type="text" value={page.title} onChange={(e) => updatePage({ title: e.target.value })} className="flex-1 bg-transparent text-lg font-bold focus:outline-none border-b border-transparent focus:border-foreground" placeholder="페이지 제목" />
           <div className="flex items-center gap-2">
-            <Button size="sm" onClick={() => save()} disabled={saving}>
-              {saving ? '저장 중...' : saved ? '저장됨!' : '저장'}
-            </Button>
-            <Button
-              size="sm"
-              variant="outline"
-              onClick={() => {
-                const url = `${window.location.origin}/p/${page.slug}`
-                navigator.clipboard.writeText(url)
-                setCopied(true)
-                setTimeout(() => setCopied(false), 2000)
-              }}
-            >
-              {copied ? 'URL 복사됨!' : 'URL 공유'}
-            </Button>
-            <Button
-              size="sm"
-              variant="outline"
-              onClick={() => window.open(`/p/${page.slug}`, '_blank')}
-            >
-              미리보기
-            </Button>
+            <Button size="sm" onClick={() => save()} disabled={saving}>{saving ? '저장 중...' : saved ? '저장됨!' : '저장'}</Button>
+            <Button size="sm" variant="outline" onClick={() => { const url = `${window.location.origin}/p/${page.slug}`; navigator.clipboard.writeText(url); setCopied(true); setTimeout(() => setCopied(false), 2000) }}>{copied ? 'URL 복사됨!' : 'URL 공유'}</Button>
+            <Button size="sm" variant="outline" onClick={() => window.open(`/p/${page.slug}`, '_blank')}>미리보기</Button>
           </div>
         </div>
 
         {/* 슬러그/폴더 */}
         <div className="max-w-2xl mx-auto mb-5 flex items-center gap-3 text-xs">
           <label className="text-muted-foreground">슬러그:</label>
-          <input
-            type="text"
-            value={page.slug}
-            onChange={(e) => updatePage({ slug: e.target.value.replace(/[^a-z0-9-]/g, '') })}
-            className="px-2 py-1 border rounded w-48 focus:outline-none focus:ring-1 focus:ring-foreground"
-          />
+          <input type="text" value={page.slug} onChange={(e) => updatePage({ slug: e.target.value.replace(/[^a-z0-9-]/g, '') })} className="px-2 py-1 border rounded w-48 focus:outline-none focus:ring-1 focus:ring-foreground" />
           <label className="text-muted-foreground">폴더:</label>
-          <input
-            type="text"
-            value={page.folder}
-            onChange={(e) => updatePage({ folder: e.target.value })}
-            className="px-2 py-1 border rounded w-32 focus:outline-none focus:ring-1 focus:ring-foreground"
-          />
+          <input type="text" value={page.folder} onChange={(e) => updatePage({ folder: e.target.value })} className="px-2 py-1 border rounded w-32 focus:outline-none focus:ring-1 focus:ring-foreground" />
         </div>
 
-        {/* 섹션 캔버스 */}
-        <div
-          className="mx-auto rounded-xl shadow-lg overflow-hidden"
-          style={{ maxWidth: page.max_width, backgroundColor: page.bg_color }}
-        >
-          <div className="min-h-[300px] p-6">
-            {page.sections.length === 0 && (
+        {/* 캔버스 */}
+        <div className="mx-auto rounded-xl shadow-lg overflow-hidden" style={{ maxWidth: page.max_width }}>
+          {/* 헤더 프리뷰 */}
+          {header.enabled && (
+            <div
+              onClick={() => { setEditingHF('header'); setEditingSection(null) }}
+              className={`cursor-pointer transition-all ${editingHF === 'header' ? 'ring-2 ring-blue-500' : 'hover:ring-1 hover:ring-muted-foreground/30'}`}
+              style={{ backgroundColor: header.bgColor, color: header.textColor, fontFamily: FONT_MAP[header.fontFamily || 'pretendard'] }}
+            >
+              <div className="px-6 py-4 flex items-center justify-between">
+                <span style={{ fontSize: header.fontSize, fontWeight: 'bold' }}>{header.text}</span>
+                {header.links.length > 0 && (
+                  <div className="flex items-center gap-4">
+                    {header.links.map((link, i) => (
+                      <span key={i} className="opacity-80 hover:opacity-100 transition-opacity" style={{ fontSize: header.fontSize - 2 }}>{link.text}</span>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
+
+          {/* 본문 */}
+          <div className="min-h-[200px] p-6" style={{ backgroundColor: page.bg_color }}>
+            {page.sections.length === 0 && !header.enabled && !footer.enabled && (
               <div className="text-center py-20 text-muted-foreground">
                 <p className="text-sm mb-1">왼쪽에서 섹션을 추가하세요</p>
                 <p className="text-xs">섹션 클릭 → 오른쪽에서 설정</p>
@@ -355,51 +373,21 @@ export default function PageEditorPage() {
                 onDragStart={() => handleDragStart(index)}
                 onDragOver={(e) => handleDragOver(e, index)}
                 onDragEnd={handleDragEnd}
-                onClick={() => setEditingSection(section.id)}
+                onClick={() => { setEditingSection(section.id); setEditingHF(null) }}
                 className={`group relative mb-2 rounded-lg cursor-pointer transition-all ${
                   dragOverIndex === index ? 'border-t-2 border-blue-500 pt-2' : ''
-                } ${
-                  editingSection === section.id
-                    ? 'ring-2 ring-blue-500'
-                    : 'hover:ring-1 hover:ring-muted-foreground/30'
-                }`}
+                } ${editingSection === section.id ? 'ring-2 ring-blue-500' : 'hover:ring-1 hover:ring-muted-foreground/30'}`}
               >
-                {/* 섹션 툴바 */}
                 <div className="absolute -top-3 right-2 hidden group-hover:flex items-center gap-1 bg-white rounded-lg shadow-sm border px-1 py-0.5 z-10">
-                  <button
-                    onClick={(e) => { e.stopPropagation(); duplicateSection(section.id) }}
-                    className="p-1 text-xs text-muted-foreground hover:text-foreground"
-                    title="복제"
-                  >
-                    ⊕
-                  </button>
-                  <button
-                    onClick={(e) => { e.stopPropagation(); deleteSection(section.id) }}
-                    className="p-1 text-xs text-muted-foreground hover:text-red-600"
-                    title="삭제"
-                  >
-                    ✕
-                  </button>
-                  <span className="cursor-grab px-1 text-xs text-muted-foreground" title="드래그로 이동">
-                    ⋮⋮
-                  </span>
+                  <button onClick={(e) => { e.stopPropagation(); duplicateSection(section.id) }} className="p-1 text-xs text-muted-foreground hover:text-foreground" title="복제">⊕</button>
+                  <button onClick={(e) => { e.stopPropagation(); deleteSection(section.id) }} className="p-1 text-xs text-muted-foreground hover:text-red-600" title="삭제">✕</button>
+                  <span className="cursor-grab px-1 text-xs text-muted-foreground" title="드래그로 이동">⋮⋮</span>
                 </div>
-
-                {/* 섹션 렌더링 */}
                 <SectionRenderer section={section} />
-
-                {/* 섹션 사이에 추가 버튼 */}
                 <div className="flex justify-center py-1 opacity-0 group-hover:opacity-100 transition-opacity">
                   <div className="flex gap-1">
                     {(['video', 'text', 'button', 'spacer'] as const).map((t) => (
-                      <button
-                        key={t}
-                        onClick={(e) => {
-                          e.stopPropagation()
-                          addSection(t, index + 1)
-                        }}
-                        className="px-2 py-0.5 text-[10px] bg-muted rounded text-muted-foreground hover:bg-foreground hover:text-background transition-colors"
-                      >
+                      <button key={t} onClick={(e) => { e.stopPropagation(); addSection(t, index + 1) }} className="px-2 py-0.5 text-[10px] bg-muted rounded text-muted-foreground hover:bg-foreground hover:text-background transition-colors">
                         +{t === 'video' ? '영상' : t === 'text' ? '텍스트' : t === 'button' ? '버튼' : '여백'}
                       </button>
                     ))}
@@ -408,45 +396,48 @@ export default function PageEditorPage() {
               </div>
             ))}
           </div>
+
+          {/* 풋터 프리뷰 */}
+          {footer.enabled && (
+            <div
+              onClick={() => { setEditingHF('footer'); setEditingSection(null) }}
+              className={`cursor-pointer transition-all ${editingHF === 'footer' ? 'ring-2 ring-blue-500' : 'hover:ring-1 hover:ring-muted-foreground/30'}`}
+              style={{ backgroundColor: footer.bgColor, color: footer.textColor, fontFamily: FONT_MAP[footer.fontFamily || 'pretendard'] }}
+            >
+              <div className="px-6 py-4" style={{ textAlign: footer.align }}>
+                {footer.links.length > 0 && (
+                  <div className="flex items-center gap-4 mb-2" style={{ justifyContent: footer.align === 'center' ? 'center' : footer.align === 'right' ? 'flex-end' : 'flex-start' }}>
+                    {footer.links.map((link, i) => (
+                      <span key={i} className="opacity-80" style={{ fontSize: footer.fontSize }}>{link.text}</span>
+                    ))}
+                  </div>
+                )}
+                <p style={{ fontSize: footer.fontSize }}>{footer.text}</p>
+              </div>
+            </div>
+          )}
         </div>
       </div>
 
-      {/* ── 오른쪽: 섹션 설정 패널 ── */}
+      {/* ── 오른쪽: 설정 패널 ── */}
       <div className="w-[280px] border-l bg-white shrink-0 overflow-auto">
-        {selectedSection ? (
+        {editingHF ? (
+          <HeaderFooterEditor
+            type={editingHF}
+            data={editingHF === 'header' ? header : footer}
+            onUpdate={(d) => updatePage({ [editingHF]: d })}
+            onClose={() => setEditingHF(null)}
+          />
+        ) : selectedSection ? (
           <div className="p-4">
             <div className="flex items-center justify-between mb-4">
-              <h3 className="text-sm font-semibold">
-                {SECTION_TYPE_LABEL[selectedSection.type]} 설정
-              </h3>
-              <button
-                onClick={() => setEditingSection(null)}
-                className="text-xs text-muted-foreground hover:text-foreground"
-              >
-                닫기
-              </button>
+              <h3 className="text-sm font-semibold">{SECTION_TYPE_LABEL[selectedSection.type]} 설정</h3>
+              <button onClick={() => setEditingSection(null)} className="text-xs text-muted-foreground hover:text-foreground">닫기</button>
             </div>
-            <SectionEditor
-              section={selectedSection}
-              onUpdate={(content) => updateSection(selectedSection.id, content)}
-            />
+            <SectionEditor section={selectedSection} onUpdate={(content) => updateSection(selectedSection.id, content)} />
             <div className="border-t mt-4 pt-4 flex gap-2">
-              <Button
-                variant="outline"
-                size="sm"
-                className="flex-1"
-                onClick={() => duplicateSection(selectedSection.id)}
-              >
-                복제
-              </Button>
-              <Button
-                variant="outline"
-                size="sm"
-                className="flex-1 text-red-600 hover:text-red-700 hover:bg-red-50"
-                onClick={() => deleteSection(selectedSection.id)}
-              >
-                삭제
-              </Button>
+              <Button variant="outline" size="sm" className="flex-1" onClick={() => duplicateSection(selectedSection.id)}>복제</Button>
+              <Button variant="outline" size="sm" className="flex-1 text-red-600 hover:text-red-700 hover:bg-red-50" onClick={() => deleteSection(selectedSection.id)}>삭제</Button>
             </div>
           </div>
         ) : (
@@ -459,89 +450,177 @@ export default function PageEditorPage() {
   )
 }
 
+// ── 헤더/풋터 에디터 ──
+function HeaderFooterEditor({
+  type,
+  data,
+  onUpdate,
+  onClose,
+}: {
+  type: 'header' | 'footer'
+  data: HeaderFooter
+  onUpdate: (d: HeaderFooter) => void
+  onClose: () => void
+}) {
+  function updateLink(index: number, field: 'text' | 'url', value: string) {
+    const links = [...data.links]
+    links[index] = { ...links[index], [field]: value }
+    onUpdate({ ...data, links })
+  }
+  function addLink() {
+    onUpdate({ ...data, links: [...data.links, { text: '링크', url: '' }] })
+  }
+  function removeLink(index: number) {
+    onUpdate({ ...data, links: data.links.filter((_, i) => i !== index) })
+  }
+
+  return (
+    <div className="p-4">
+      <div className="flex items-center justify-between mb-4">
+        <h3 className="text-sm font-semibold">{type === 'header' ? '헤더' : '풋터'} 설정</h3>
+        <button onClick={onClose} className="text-xs text-muted-foreground hover:text-foreground">닫기</button>
+      </div>
+
+      <div className="space-y-4">
+        <label className="flex items-center gap-2 text-sm cursor-pointer">
+          <input
+            type="checkbox"
+            checked={data.enabled}
+            onChange={(e) => onUpdate({ ...data, enabled: e.target.checked })}
+            className="rounded"
+          />
+          {type === 'header' ? '헤더' : '풋터'} 사용
+        </label>
+
+        {data.enabled && (
+          <>
+            <div>
+              <label className="text-xs font-medium text-muted-foreground block mb-1.5">{type === 'header' ? '로고/사이트명' : '하단 텍스트'}</label>
+              <input
+                type="text"
+                value={data.text}
+                onChange={(e) => onUpdate({ ...data, text: e.target.value })}
+                className="w-full px-3 py-2 text-sm border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+              />
+            </div>
+
+            <div>
+              <label className="text-xs font-medium text-muted-foreground block mb-1.5">폰트</label>
+              <select
+                value={data.fontFamily || 'pretendard'}
+                onChange={(e) => onUpdate({ ...data, fontFamily: e.target.value as 'pretendard' | 'noto-serif' })}
+                className="w-full px-3 py-2 text-sm border rounded-lg"
+              >
+                <option value="pretendard">고딕 (Pretendard)</option>
+                <option value="noto-serif">명조 (Noto Serif)</option>
+              </select>
+            </div>
+
+            <div>
+              <label className="text-xs font-medium text-muted-foreground block mb-1.5">글자 크기 (px)</label>
+              <input type="number" value={data.fontSize} onChange={(e) => onUpdate({ ...data, fontSize: Number(e.target.value) })} className="w-full px-3 py-2 text-sm border rounded-lg" min={10} max={40} />
+            </div>
+
+            <div>
+              <label className="text-xs font-medium text-muted-foreground block mb-1.5">정렬</label>
+              <div className="flex gap-2">
+                {(['left', 'center', 'right'] as const).map((a) => (
+                  <button key={a} onClick={() => onUpdate({ ...data, align: a })} className={`flex-1 px-3 py-1.5 text-xs rounded-lg border transition-colors ${data.align === a ? 'bg-foreground text-background border-foreground' : 'hover:border-foreground'}`}>
+                    {a === 'left' ? '좌측' : a === 'center' ? '중앙' : '우측'}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <label className="text-xs font-medium text-muted-foreground block mb-1.5">배경색</label>
+                <div className="flex items-center gap-2">
+                  <input type="color" value={data.bgColor} onChange={(e) => onUpdate({ ...data, bgColor: e.target.value })} className="w-10 h-10 rounded-lg border cursor-pointer" />
+                  <input type="text" value={data.bgColor} onChange={(e) => onUpdate({ ...data, bgColor: e.target.value })} className="flex-1 px-2 py-2 text-xs border rounded-lg" />
+                </div>
+              </div>
+              <div>
+                <label className="text-xs font-medium text-muted-foreground block mb-1.5">글자색</label>
+                <div className="flex items-center gap-2">
+                  <input type="color" value={data.textColor} onChange={(e) => onUpdate({ ...data, textColor: e.target.value })} className="w-10 h-10 rounded-lg border cursor-pointer" />
+                  <input type="text" value={data.textColor} onChange={(e) => onUpdate({ ...data, textColor: e.target.value })} className="flex-1 px-2 py-2 text-xs border rounded-lg" />
+                </div>
+              </div>
+            </div>
+
+            {/* 링크 관리 */}
+            <div>
+              <div className="flex items-center justify-between mb-1.5">
+                <label className="text-xs font-medium text-muted-foreground">네비게이션 링크</label>
+                <button onClick={addLink} className="text-xs text-blue-600 hover:text-blue-800">+ 추가</button>
+              </div>
+              {data.links.length === 0 && (
+                <p className="text-xs text-muted-foreground">링크 없음</p>
+              )}
+              {data.links.map((link, i) => (
+                <div key={i} className="flex items-center gap-1 mb-2">
+                  <input
+                    type="text"
+                    value={link.text}
+                    onChange={(e) => updateLink(i, 'text', e.target.value)}
+                    placeholder="텍스트"
+                    className="flex-1 px-2 py-1.5 text-xs border rounded"
+                  />
+                  <input
+                    type="text"
+                    value={link.url}
+                    onChange={(e) => updateLink(i, 'url', e.target.value)}
+                    placeholder="URL"
+                    className="flex-1 px-2 py-1.5 text-xs border rounded"
+                  />
+                  <button onClick={() => removeLink(i)} className="text-xs text-red-500 hover:text-red-700 px-1">✕</button>
+                </div>
+              ))}
+            </div>
+          </>
+        )}
+      </div>
+    </div>
+  )
+}
+
 // ── 섹션 렌더러 ──
 function SectionRenderer({ section }: { section: Section }) {
   switch (section.type) {
     case 'video': {
       const c = section.content as VideoContent
       if (!c.videoId) {
-        return (
-          <div className="bg-muted rounded-lg flex items-center justify-center aspect-video text-muted-foreground text-sm">
-            YouTube 영상 ID를 입력하세요
-          </div>
-        )
+        return <div className="bg-muted rounded-lg flex items-center justify-center aspect-video text-muted-foreground text-sm">YouTube 영상 ID를 입력하세요</div>
       }
       const aspectClass = c.aspectRatio === '4:3' ? 'aspect-[4/3]' : c.aspectRatio === '1:1' ? 'aspect-square' : 'aspect-video'
       return (
         <div className={`relative ${aspectClass} rounded-lg overflow-hidden bg-black`}>
-          <iframe
-            src={`https://www.youtube.com/embed/${c.videoId}?enablejsapi=1`}
-            className="absolute inset-0 w-full h-full"
-            allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
-            allowFullScreen
-          />
+          <iframe src={`https://www.youtube.com/embed/${c.videoId}?enablejsapi=1`} className="absolute inset-0 w-full h-full" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" allowFullScreen />
         </div>
       )
     }
     case 'text': {
       const c = section.content as TextContent
-      return (
-        <div
-          className="py-2 px-1"
-          style={{
-            fontSize: c.fontSize,
-            fontWeight: c.fontWeight,
-            fontFamily: FONT_MAP[c.fontFamily || 'pretendard'],
-            textAlign: c.align,
-            color: c.color,
-          }}
-        >
-          {c.text}
-        </div>
-      )
+      return <div className="py-2 px-1" style={{ fontSize: c.fontSize, fontWeight: c.fontWeight, fontFamily: FONT_MAP[c.fontFamily || 'pretendard'], textAlign: c.align, color: c.color }}>{c.text}</div>
     }
     case 'button': {
       const c = section.content as ButtonContent
       return (
-        <div className="py-2" style={{ textAlign: 'center' }}>
-          <span
-            className={`inline-block px-8 py-3 font-medium cursor-pointer ${c.fullWidth ? 'w-full' : ''}`}
-            style={{
-              backgroundColor: c.bgColor,
-              color: c.textColor,
-              fontSize: c.fontSize,
-              borderRadius: c.borderRadius,
-            }}
-          >
-            {c.text}
-          </span>
+        <div className="py-2 text-center">
+          <span className={`inline-block px-8 py-3 font-medium ${c.fullWidth ? 'w-full' : ''}`} style={{ backgroundColor: c.bgColor, color: c.textColor, fontSize: c.fontSize, borderRadius: c.borderRadius }}>{c.text}</span>
         </div>
       )
     }
     case 'spacer': {
       const c = section.content as SpacerContent
-      return (
-        <div
-          className="relative"
-          style={{ height: c.height }}
-        >
-          <div className="absolute inset-0 border border-dashed border-muted-foreground/20 rounded flex items-center justify-center text-[10px] text-muted-foreground">
-            여백 {c.height}px
-          </div>
-        </div>
-      )
+      return <div className="relative" style={{ height: c.height }}><div className="absolute inset-0 border border-dashed border-muted-foreground/20 rounded flex items-center justify-center text-[10px] text-muted-foreground">여백 {c.height}px</div></div>
     }
   }
 }
 
-// ── 섹션 에디터 (오른쪽 패널용) ──
-function SectionEditor({
-  section,
-  onUpdate,
-}: {
-  section: Section
-  onUpdate: (content: Section['content']) => void
-}) {
+// ── 섹션 에디터 ──
+function SectionEditor({ section, onUpdate }: { section: Section; onUpdate: (content: Section['content']) => void }) {
   switch (section.type) {
     case 'video': {
       const c = section.content as VideoContent
@@ -549,32 +628,13 @@ function SectionEditor({
         <div className="space-y-4">
           <div>
             <label className="text-xs font-medium text-muted-foreground block mb-1.5">YouTube 영상 ID 또는 URL</label>
-            <input
-              type="text"
-              value={c.videoId}
-              onChange={(e) => {
-                let val = e.target.value.trim()
-                const match = val.match(/(?:youtube\.com\/(?:watch\?v=|embed\/)|youtu\.be\/)([a-zA-Z0-9_-]{11})/)
-                if (match) val = match[1]
-                onUpdate({ ...c, videoId: val })
-              }}
-              placeholder="예: dQw4w9WgXcQ"
-              className="w-full px-3 py-2 text-sm border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-            />
+            <input type="text" value={c.videoId} onChange={(e) => { let val = e.target.value.trim(); const match = val.match(/(?:youtube\.com\/(?:watch\?v=|embed\/)|youtu\.be\/)([a-zA-Z0-9_-]{11})/); if (match) val = match[1]; onUpdate({ ...c, videoId: val }) }} placeholder="예: dQw4w9WgXcQ" className="w-full px-3 py-2 text-sm border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500" />
           </div>
           <div>
             <label className="text-xs font-medium text-muted-foreground block mb-1.5">화면 비율</label>
             <div className="flex gap-2">
               {(['16:9', '4:3', '1:1'] as const).map((r) => (
-                <button
-                  key={r}
-                  onClick={() => onUpdate({ ...c, aspectRatio: r })}
-                  className={`flex-1 px-3 py-1.5 text-xs rounded-lg border transition-colors ${
-                    c.aspectRatio === r ? 'bg-foreground text-background border-foreground' : 'hover:border-foreground'
-                  }`}
-                >
-                  {r}
-                </button>
+                <button key={r} onClick={() => onUpdate({ ...c, aspectRatio: r })} className={`flex-1 px-3 py-1.5 text-xs rounded-lg border transition-colors ${c.aspectRatio === r ? 'bg-foreground text-background border-foreground' : 'hover:border-foreground'}`}>{r}</button>
               ))}
             </div>
           </div>
@@ -587,20 +647,11 @@ function SectionEditor({
         <div className="space-y-4">
           <div>
             <label className="text-xs font-medium text-muted-foreground block mb-1.5">텍스트</label>
-            <textarea
-              value={c.text}
-              onChange={(e) => onUpdate({ ...c, text: e.target.value })}
-              rows={4}
-              className="w-full px-3 py-2 text-sm border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 resize-none"
-            />
+            <textarea value={c.text} onChange={(e) => onUpdate({ ...c, text: e.target.value })} rows={4} className="w-full px-3 py-2 text-sm border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 resize-none" />
           </div>
           <div>
             <label className="text-xs font-medium text-muted-foreground block mb-1.5">폰트</label>
-            <select
-              value={c.fontFamily || 'pretendard'}
-              onChange={(e) => onUpdate({ ...c, fontFamily: e.target.value as 'pretendard' | 'noto-serif' })}
-              className="w-full px-3 py-2 text-sm border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-            >
+            <select value={c.fontFamily || 'pretendard'} onChange={(e) => onUpdate({ ...c, fontFamily: e.target.value as 'pretendard' | 'noto-serif' })} className="w-full px-3 py-2 text-sm border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500">
               <option value="pretendard">고딕 (Pretendard)</option>
               <option value="noto-serif">명조 (Noto Serif)</option>
             </select>
@@ -608,22 +659,11 @@ function SectionEditor({
           <div className="grid grid-cols-2 gap-3">
             <div>
               <label className="text-xs font-medium text-muted-foreground block mb-1.5">크기 (px)</label>
-              <input
-                type="number"
-                value={c.fontSize}
-                onChange={(e) => onUpdate({ ...c, fontSize: Number(e.target.value) })}
-                className="w-full px-3 py-2 text-sm border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-                min={10}
-                max={72}
-              />
+              <input type="number" value={c.fontSize} onChange={(e) => onUpdate({ ...c, fontSize: Number(e.target.value) })} className="w-full px-3 py-2 text-sm border rounded-lg" min={10} max={72} />
             </div>
             <div>
               <label className="text-xs font-medium text-muted-foreground block mb-1.5">굵기</label>
-              <select
-                value={c.fontWeight}
-                onChange={(e) => onUpdate({ ...c, fontWeight: e.target.value as 'normal' | 'bold' })}
-                className="w-full px-3 py-2 text-sm border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-              >
+              <select value={c.fontWeight} onChange={(e) => onUpdate({ ...c, fontWeight: e.target.value as 'normal' | 'bold' })} className="w-full px-3 py-2 text-sm border rounded-lg">
                 <option value="normal">보통</option>
                 <option value="bold">굵게</option>
               </select>
@@ -633,33 +673,15 @@ function SectionEditor({
             <label className="text-xs font-medium text-muted-foreground block mb-1.5">정렬</label>
             <div className="flex gap-2">
               {(['left', 'center', 'right'] as const).map((a) => (
-                <button
-                  key={a}
-                  onClick={() => onUpdate({ ...c, align: a })}
-                  className={`flex-1 px-3 py-1.5 text-xs rounded-lg border transition-colors ${
-                    c.align === a ? 'bg-foreground text-background border-foreground' : 'hover:border-foreground'
-                  }`}
-                >
-                  {a === 'left' ? '좌측' : a === 'center' ? '중앙' : '우측'}
-                </button>
+                <button key={a} onClick={() => onUpdate({ ...c, align: a })} className={`flex-1 px-3 py-1.5 text-xs rounded-lg border transition-colors ${c.align === a ? 'bg-foreground text-background border-foreground' : 'hover:border-foreground'}`}>{a === 'left' ? '좌측' : a === 'center' ? '중앙' : '우측'}</button>
               ))}
             </div>
           </div>
           <div>
             <label className="text-xs font-medium text-muted-foreground block mb-1.5">글자 색상</label>
             <div className="flex items-center gap-2">
-              <input
-                type="color"
-                value={c.color}
-                onChange={(e) => onUpdate({ ...c, color: e.target.value })}
-                className="w-10 h-10 rounded-lg border cursor-pointer"
-              />
-              <input
-                type="text"
-                value={c.color}
-                onChange={(e) => onUpdate({ ...c, color: e.target.value })}
-                className="flex-1 px-3 py-2 text-sm border rounded-lg"
-              />
+              <input type="color" value={c.color} onChange={(e) => onUpdate({ ...c, color: e.target.value })} className="w-10 h-10 rounded-lg border cursor-pointer" />
+              <input type="text" value={c.color} onChange={(e) => onUpdate({ ...c, color: e.target.value })} className="flex-1 px-3 py-2 text-sm border rounded-lg" />
             </div>
           </div>
         </div>
@@ -671,92 +693,33 @@ function SectionEditor({
         <div className="space-y-4">
           <div>
             <label className="text-xs font-medium text-muted-foreground block mb-1.5">버튼 텍스트</label>
-            <input
-              type="text"
-              value={c.text}
-              onChange={(e) => onUpdate({ ...c, text: e.target.value })}
-              className="w-full px-3 py-2 text-sm border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-            />
+            <input type="text" value={c.text} onChange={(e) => onUpdate({ ...c, text: e.target.value })} className="w-full px-3 py-2 text-sm border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500" />
           </div>
           <div>
             <label className="text-xs font-medium text-muted-foreground block mb-1.5">링크 URL</label>
-            <input
-              type="url"
-              value={c.url}
-              onChange={(e) => onUpdate({ ...c, url: e.target.value })}
-              placeholder="https://"
-              className="w-full px-3 py-2 text-sm border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-            />
+            <input type="url" value={c.url} onChange={(e) => onUpdate({ ...c, url: e.target.value })} placeholder="https://" className="w-full px-3 py-2 text-sm border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500" />
           </div>
           <div className="grid grid-cols-2 gap-3">
             <div>
               <label className="text-xs font-medium text-muted-foreground block mb-1.5">배경색</label>
-              <div className="flex items-center gap-2">
-                <input
-                  type="color"
-                  value={c.bgColor}
-                  onChange={(e) => onUpdate({ ...c, bgColor: e.target.value })}
-                  className="w-10 h-10 rounded-lg border cursor-pointer"
-                />
-                <input
-                  type="text"
-                  value={c.bgColor}
-                  onChange={(e) => onUpdate({ ...c, bgColor: e.target.value })}
-                  className="flex-1 px-2 py-2 text-xs border rounded-lg"
-                />
-              </div>
+              <div className="flex items-center gap-2"><input type="color" value={c.bgColor} onChange={(e) => onUpdate({ ...c, bgColor: e.target.value })} className="w-10 h-10 rounded-lg border cursor-pointer" /><input type="text" value={c.bgColor} onChange={(e) => onUpdate({ ...c, bgColor: e.target.value })} className="flex-1 px-2 py-2 text-xs border rounded-lg" /></div>
             </div>
             <div>
               <label className="text-xs font-medium text-muted-foreground block mb-1.5">글자색</label>
-              <div className="flex items-center gap-2">
-                <input
-                  type="color"
-                  value={c.textColor}
-                  onChange={(e) => onUpdate({ ...c, textColor: e.target.value })}
-                  className="w-10 h-10 rounded-lg border cursor-pointer"
-                />
-                <input
-                  type="text"
-                  value={c.textColor}
-                  onChange={(e) => onUpdate({ ...c, textColor: e.target.value })}
-                  className="flex-1 px-2 py-2 text-xs border rounded-lg"
-                />
-              </div>
+              <div className="flex items-center gap-2"><input type="color" value={c.textColor} onChange={(e) => onUpdate({ ...c, textColor: e.target.value })} className="w-10 h-10 rounded-lg border cursor-pointer" /><input type="text" value={c.textColor} onChange={(e) => onUpdate({ ...c, textColor: e.target.value })} className="flex-1 px-2 py-2 text-xs border rounded-lg" /></div>
             </div>
           </div>
           <div className="grid grid-cols-2 gap-3">
             <div>
               <label className="text-xs font-medium text-muted-foreground block mb-1.5">글자 크기</label>
-              <input
-                type="number"
-                value={c.fontSize}
-                onChange={(e) => onUpdate({ ...c, fontSize: Number(e.target.value) })}
-                className="w-full px-3 py-2 text-sm border rounded-lg"
-                min={12}
-                max={32}
-              />
+              <input type="number" value={c.fontSize} onChange={(e) => onUpdate({ ...c, fontSize: Number(e.target.value) })} className="w-full px-3 py-2 text-sm border rounded-lg" min={12} max={32} />
             </div>
             <div>
               <label className="text-xs font-medium text-muted-foreground block mb-1.5">모서리 둥글기</label>
-              <input
-                type="number"
-                value={c.borderRadius}
-                onChange={(e) => onUpdate({ ...c, borderRadius: Number(e.target.value) })}
-                className="w-full px-3 py-2 text-sm border rounded-lg"
-                min={0}
-                max={50}
-              />
+              <input type="number" value={c.borderRadius} onChange={(e) => onUpdate({ ...c, borderRadius: Number(e.target.value) })} className="w-full px-3 py-2 text-sm border rounded-lg" min={0} max={50} />
             </div>
           </div>
-          <label className="flex items-center gap-2 text-sm text-muted-foreground cursor-pointer">
-            <input
-              type="checkbox"
-              checked={c.fullWidth}
-              onChange={(e) => onUpdate({ ...c, fullWidth: e.target.checked })}
-              className="rounded"
-            />
-            전체 너비로 표시
-          </label>
+          <label className="flex items-center gap-2 text-sm text-muted-foreground cursor-pointer"><input type="checkbox" checked={c.fullWidth} onChange={(e) => onUpdate({ ...c, fullWidth: e.target.checked })} className="rounded" />전체 너비로 표시</label>
         </div>
       )
     }
@@ -765,14 +728,7 @@ function SectionEditor({
       return (
         <div className="space-y-3">
           <label className="text-xs font-medium text-muted-foreground block">높이 (px)</label>
-          <input
-            type="range"
-            value={c.height}
-            onChange={(e) => onUpdate({ ...c, height: Number(e.target.value) })}
-            min={10}
-            max={200}
-            className="w-full"
-          />
+          <input type="range" value={c.height} onChange={(e) => onUpdate({ ...c, height: Number(e.target.value) })} min={10} max={200} className="w-full" />
           <div className="text-center text-sm text-muted-foreground">{c.height}px</div>
         </div>
       )

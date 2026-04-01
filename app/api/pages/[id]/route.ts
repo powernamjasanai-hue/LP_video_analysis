@@ -38,6 +38,8 @@ export async function PUT(
     if (body.published !== undefined) updates.published = body.published
     if (body.bg_color !== undefined) updates.bg_color = body.bg_color
     if (body.max_width !== undefined) updates.max_width = body.max_width
+    if (body.header !== undefined) updates.header = body.header
+    if (body.footer !== undefined) updates.footer = body.footer
 
     const { data, error } = await supabaseAdmin
       .from('landing_pages')

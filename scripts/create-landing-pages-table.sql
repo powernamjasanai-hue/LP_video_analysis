@@ -8,6 +8,8 @@ create table landing_pages (
   published boolean not null default false,
   bg_color text not null default '#ffffff',
   max_width int not null default 640,
+  header jsonb,
+  footer jsonb,
   created_at timestamptz default now(),
   updated_at timestamptz default now()
 );
