@@ -100,18 +100,11 @@ export default async function DashboardPage({ searchParams }: Props) {
   }))
 
   return (
-    <div className="min-h-screen bg-[#fafafa]">
+    <>
       {/* Header */}
       <header className="sticky top-0 z-10 bg-white/80 backdrop-blur-sm border-b border-border">
-        <div className="max-w-7xl mx-auto px-6 py-4 flex items-center justify-between">
-          <div>
-            <h1 className="text-[22px] font-bold tracking-tight text-foreground">
-              VideoDropTracker
-            </h1>
-            <p className="text-[13px] text-muted-foreground mt-0.5">
-              YouTube 영상 시청 이탈 분석
-            </p>
-          </div>
+        <div className="px-8 py-4 flex items-center justify-between">
+          <h2 className="text-[16px] font-semibold text-foreground">대시보드</h2>
           {videoIds.length > 0 && (
             <div className="flex items-center gap-3">
               <Suspense fallback={null}>
@@ -127,7 +120,7 @@ export default async function DashboardPage({ searchParams }: Props) {
       </header>
 
       {/* Content */}
-      <main className="max-w-7xl mx-auto px-6 py-8">
+      <main className="px-8 py-8">
         {videoIds.length === 0 ? (
           <div className="flex items-center justify-center min-h-[60vh]">
             <div className="text-center">
@@ -140,7 +133,7 @@ export default async function DashboardPage({ searchParams }: Props) {
                 아직 수집된 데이터가 없습니다
               </p>
               <p className="text-[13px] text-muted-foreground mt-1.5 max-w-[280px]">
-                LP에 트래킹 스니펫을 삽입하고 시청 데이터가 수집될 때까지 기다려주세요
+                트래킹 코드 탭에서 코드를 생성해 LP에 삽입해주세요
               </p>
             </div>
           </div>
@@ -159,18 +152,14 @@ export default async function DashboardPage({ searchParams }: Props) {
               earlyDropRate={earlyDropRate}
             />
 
-            {/* Charts — Pinterest-style 2-column masonry */}
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-              <div className="lg:col-span-2">
-                <DropOffChart data={bucketData} />
-              </div>
-              <div className="lg:col-span-2">
-                <PageUrlTable data={pageUrlData} />
-              </div>
+            {/* Charts */}
+            <div className="space-y-6">
+              <DropOffChart data={bucketData} />
+              <PageUrlTable data={pageUrlData} />
             </div>
           </div>
         )}
       </main>
-    </div>
+    </>
   )
 }
