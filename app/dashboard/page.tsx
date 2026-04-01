@@ -119,60 +119,42 @@ export default async function DashboardPage({ searchParams }: Props) {
       <header className="sticky top-0 z-10 bg-white/80 backdrop-blur-sm border-b border-border">
         <div className="px-8 py-4 flex items-center justify-between">
           <h2 className="text-[16px] font-semibold text-foreground">대시보드</h2>
-          {videoList.length > 0 && (
-            <div className="flex items-center gap-3">
+          <div className="flex items-center gap-3">
+            {videoList.length > 0 && (
               <Suspense fallback={null}>
                 <VideoSelector videos={videoList} />
               </Suspense>
-              <Separator orientation="vertical" className="h-8" />
-              <Suspense fallback={null}>
-                <DateFilter />
-              </Suspense>
-            </div>
-          )}
+            )}
+            <Separator orientation="vertical" className="h-8" />
+            <Suspense fallback={null}>
+              <DateFilter />
+            </Suspense>
+          </div>
         </div>
       </header>
 
       {/* Content */}
       <main className="px-8 py-8">
-        {videoList.length === 0 ? (
-          <div className="flex items-center justify-center min-h-[60vh]">
-            <div className="text-center">
-              <div className="w-16 h-16 rounded-full bg-muted flex items-center justify-center mx-auto mb-4">
-                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" className="text-muted-foreground">
-                  <polygon points="5 3 19 12 5 21 5 3" />
-                </svg>
-              </div>
-              <p className="text-[15px] font-medium text-foreground">
-                아직 수집된 데이터가 없습니다
-              </p>
-              <p className="text-[13px] text-muted-foreground mt-1.5 max-w-[280px]">
-                트래킹 코드 탭에서 코드를 생성해 LP에 삽입해주세요
-              </p>
-            </div>
-          </div>
-        ) : (
+        <div className="space-y-6">
+          {/* Session count */}
+          <p className="text-[13px] text-muted-foreground">
+            총 <span className="font-semibold text-foreground">{totalSessions.toLocaleString()}</span>개 세션
+          </p>
+
+          {/* Metric Cards */}
+          <MetricCards
+            viewerCount={viewerCount}
+            avgWatchTime={avgWatchTime}
+            avgWatchPercent={avgWatchPercent}
+            earlyDropRate={earlyDropRate}
+          />
+
+          {/* Charts */}
           <div className="space-y-6">
-            {/* Session count */}
-            <p className="text-[13px] text-muted-foreground">
-              총 <span className="font-semibold text-foreground">{totalSessions.toLocaleString()}</span>개 세션
-            </p>
-
-            {/* Metric Cards */}
-            <MetricCards
-              viewerCount={viewerCount}
-              avgWatchTime={avgWatchTime}
-              avgWatchPercent={avgWatchPercent}
-              earlyDropRate={earlyDropRate}
-            />
-
-            {/* Charts */}
-            <div className="space-y-6">
-              <DropOffChart data={bucketData} />
-              <PageUrlTable data={pageUrlData} />
-            </div>
+            <DropOffChart data={bucketData} />
+            <PageUrlTable data={pageUrlData} />
           </div>
-        )}
+        </div>
       </main>
     </>
   )
