@@ -51,7 +51,7 @@ export default function VideosPage() {
   const [videoError, setVideoError] = useState('')
 
   // UI
-  const [expandedProject, setExpandedProject] = useState<string | null>(null)
+  const [expandedProjects, setExpandedProjects] = useState<Set<string>>(new Set())
   const [expandedCode, setExpandedCode] = useState<string | null>(null)
   const [copied, setCopied] = useState<string | null>(null)
 
@@ -255,14 +255,19 @@ export default function VideosPage() {
             <>
               {projects.map((project) => {
                 const pVideos = videosForProject(project.id)
-                const isExpanded = expandedProject === project.id || expandedProject === null
+                const isExpanded = expandedProjects.has(project.id)
 
                 return (
                   <div key={project.id}>
                     {/* 프로젝트 헤더 */}
                     <div
                       className="flex items-center justify-between mb-3 cursor-pointer group"
-                      onClick={() => setExpandedProject(expandedProject === project.id ? null : project.id)}
+                      onClick={() => {
+                        const next = new Set(expandedProjects)
+                        if (next.has(project.id)) next.delete(project.id)
+                        else next.add(project.id)
+                        setExpandedProjects(next)
+                      }}
                     >
                       <div className="flex items-center gap-2.5">
                         <svg
