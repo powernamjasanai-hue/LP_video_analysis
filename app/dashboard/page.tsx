@@ -37,12 +37,25 @@ export default async function DashboardPage({ searchParams }: Props) {
 
   const projectMap = new Map((projects || []).map((p) => [p.id, p.name]))
 
-  // 등록된 영상만 표시 (프로젝트 이름 포함)
-  const videoList = (registeredVideos || []).map((v) => ({
-    video_id: v.video_id,
-    title: v.title,
-    project_name: v.project_id ? projectMap.get(v.project_id) || null : null,
-  }))
+  // 세션 데이터에 있는 video_id도 포함
+  const { data: videoRows } = await supabaseAdmin
+    .from('view_sessions')
+    .select('video_id')
+
+  const sessionVideoIds = Array.from(new Set((videoRows || []).map((r) => r.video_id)))
+  const registeredMap = new Map((registeredVideos || []).map((v) => [v.video_id, v]))
+
+  // 등록된 영상 우선 + 미등록이지만 세션 있는 영상도 포함
+  const videoList = [
+    ...(registeredVideos || []).map((v) => ({
+      video_id: v.video_id,
+      title: v.title,
+      project_name: v.project_id ? projectMap.get(v.project_id) || null : null,
+    })),
+    ...sessionVideoIds
+      .filter((id) => !registeredMap.has(id))
+      .map((id) => ({ video_id: id, title: id, project_name: null as string | null })),
+  ]
 
   const selectedVideo = searchParams.videoId || videoList[0]?.video_id || ''
   const period = searchParams.period || '30d'
@@ -120,11 +133,9 @@ export default async function DashboardPage({ searchParams }: Props) {
         <div className="px-8 py-4 flex items-center justify-between">
           <h2 className="text-[16px] font-semibold text-foreground">대시보드</h2>
           <div className="flex items-center gap-3">
-            {videoList.length > 0 && (
-              <Suspense fallback={null}>
-                <VideoSelector videos={videoList} />
-              </Suspense>
-            )}
+            <Suspense fallback={null}>
+              <VideoSelector videos={videoList} />
+            </Suspense>
             <Separator orientation="vertical" className="h-8" />
             <Suspense fallback={null}>
               <DateFilter />

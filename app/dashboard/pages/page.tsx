@@ -187,16 +187,30 @@ export default function PagesListPage() {
                 </div>
                 <div className="flex items-center gap-2 ml-4">
                   {page.published && (
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={(e) => {
-                        e.stopPropagation()
-                        window.open(`/p/${page.slug}`, '_blank')
-                      }}
-                    >
-                      보기
-                    </Button>
+                    <>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={(e) => {
+                          e.stopPropagation()
+                          const url = `${window.location.origin}/p/${page.slug}`
+                          navigator.clipboard.writeText(url)
+                          alert('URL이 복사되었습니다!')
+                        }}
+                      >
+                        URL 복사
+                      </Button>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={(e) => {
+                          e.stopPropagation()
+                          window.open(`/p/${page.slug}`, '_blank')
+                        }}
+                      >
+                        보기
+                      </Button>
+                    </>
                   )}
                   <Button
                     variant="ghost"
