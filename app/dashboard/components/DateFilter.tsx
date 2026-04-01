@@ -1,6 +1,7 @@
 'use client'
 
 import { useRouter, useSearchParams } from 'next/navigation'
+import { Button } from '@/components/ui/button'
 
 const PERIODS = [
   { label: '7일', value: '7d' },
@@ -20,19 +21,21 @@ export default function DateFilter() {
   }
 
   return (
-    <div className="flex gap-1">
+    <div className="flex gap-1 bg-muted rounded-lg p-0.5">
       {PERIODS.map((p) => (
-        <button
+        <Button
           key={p.value}
+          variant={current === p.value ? 'secondary' : 'ghost'}
+          size="sm"
           onClick={() => onClick(p.value)}
-          className={`px-3 py-1.5 text-sm rounded-lg transition-colors ${
+          className={`h-7 px-3 text-[12px] font-medium rounded-md transition-all ${
             current === p.value
-              ? 'bg-blue-600 text-white'
-              : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+              ? 'bg-white text-foreground shadow-sm'
+              : 'text-muted-foreground hover:text-foreground'
           }`}
         >
           {p.label}
-        </button>
+        </Button>
       ))}
     </div>
   )

@@ -1,5 +1,6 @@
 import { Suspense } from 'react'
 import { supabaseAdmin } from '@/lib/supabase-admin'
+import { Separator } from '@/components/ui/separator'
 import VideoSelector from './components/VideoSelector'
 import DateFilter from './components/DateFilter'
 import MetricCards from './components/MetricCards'
@@ -20,11 +21,10 @@ function getDateFilter(period: string): string | null {
     now.setDate(now.getDate() - 30)
     return now.toISOString()
   }
-  return null // 'all'
+  return null
 }
 
 export default async function DashboardPage({ searchParams }: Props) {
-  // Get all distinct video IDs
   const { data: videoRows } = await supabaseAdmin
     .from('view_sessions')
     .select('video_id')
@@ -34,7 +34,6 @@ export default async function DashboardPage({ searchParams }: Props) {
   const period = searchParams.period || '30d'
   const dateFrom = getDateFilter(period)
 
-  // Build query for selected video
   let query = supabaseAdmin
     .from('view_sessions')
     .select('*')
@@ -58,14 +57,13 @@ export default async function DashboardPage({ searchParams }: Props) {
     : 0
   const avgWatchPercent = maxDuration > 0 ? (avgWatchTime / maxDuration) * 100 : 0
 
-  // 10-second early drop rate (exclude completed views)
   const earlyDropCount = rows.filter((r) => {
     const completed = r.duration_seconds && r.drop_off_second >= r.duration_seconds
     return !completed && r.drop_off_second <= 10
   }).length
   const earlyDropRate = totalSessions > 0 ? (earlyDropCount / totalSessions) * 100 : 0
 
-  // ---- Drop-off buckets (10-second intervals) ----
+  // ---- Drop-off buckets ----
   const bucketSize = 10
   const maxBucket = Math.ceil(maxDuration / bucketSize) * bucketSize
   const bucketCounts: Record<string, number> = {}
@@ -73,7 +71,6 @@ export default async function DashboardPage({ searchParams }: Props) {
     bucketCounts[`${i}-${i + bucketSize}`] = 0
   }
   rows.forEach((r) => {
-    // Skip completed views
     if (r.duration_seconds && r.drop_off_second >= r.duration_seconds) return
     const bucketStart = Math.floor(r.drop_off_second / bucketSize) * bucketSize
     const key = `${bucketStart}-${bucketStart + bucketSize}`
@@ -103,44 +100,77 @@ export default async function DashboardPage({ searchParams }: Props) {
   }))
 
   return (
-    <div className="min-h-screen bg-gray-50">
-      <div className="max-w-6xl mx-auto px-4 py-8">
-        <h1 className="text-2xl font-bold text-gray-900 mb-6">VideoDropTracker</h1>
-
-        {videoIds.length === 0 ? (
-          <div className="bg-white rounded-xl border border-gray-200 p-12 text-center">
-            <p className="text-gray-500">아직 수집된 데이터가 없습니다.</p>
-            <p className="text-sm text-gray-400 mt-2">
-              LP에 트래킹 스니펫을 삽입하고 시청 데이터가 수집될 때까지 기다려주세요.
+    <div className="min-h-screen bg-[#fafafa]">
+      {/* Header */}
+      <header className="sticky top-0 z-10 bg-white/80 backdrop-blur-sm border-b border-border">
+        <div className="max-w-7xl mx-auto px-6 py-4 flex items-center justify-between">
+          <div>
+            <h1 className="text-[22px] font-bold tracking-tight text-foreground">
+              VideoDropTracker
+            </h1>
+            <p className="text-[13px] text-muted-foreground mt-0.5">
+              YouTube 영상 시청 이탈 분석
             </p>
           </div>
-        ) : (
-          <>
-            <div className="flex flex-wrap items-center gap-4 mb-6">
+          {videoIds.length > 0 && (
+            <div className="flex items-center gap-3">
               <Suspense fallback={null}>
                 <VideoSelector videoIds={videoIds} />
               </Suspense>
+              <Separator orientation="vertical" className="h-8" />
               <Suspense fallback={null}>
                 <DateFilter />
               </Suspense>
-              <span className="text-sm text-gray-400">
-                총 {totalSessions}개 세션
-              </span>
             </div>
+          )}
+        </div>
+      </header>
 
-            <div className="space-y-6">
-              <MetricCards
-                viewerCount={viewerCount}
-                avgWatchTime={avgWatchTime}
-                avgWatchPercent={avgWatchPercent}
-                earlyDropRate={earlyDropRate}
-              />
-              <DropOffChart data={bucketData} />
-              <PageUrlTable data={pageUrlData} />
+      {/* Content */}
+      <main className="max-w-7xl mx-auto px-6 py-8">
+        {videoIds.length === 0 ? (
+          <div className="flex items-center justify-center min-h-[60vh]">
+            <div className="text-center">
+              <div className="w-16 h-16 rounded-full bg-muted flex items-center justify-center mx-auto mb-4">
+                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" className="text-muted-foreground">
+                  <polygon points="5 3 19 12 5 21 5 3" />
+                </svg>
+              </div>
+              <p className="text-[15px] font-medium text-foreground">
+                아직 수집된 데이터가 없습니다
+              </p>
+              <p className="text-[13px] text-muted-foreground mt-1.5 max-w-[280px]">
+                LP에 트래킹 스니펫을 삽입하고 시청 데이터가 수집될 때까지 기다려주세요
+              </p>
             </div>
-          </>
+          </div>
+        ) : (
+          <div className="space-y-6">
+            {/* Session count */}
+            <p className="text-[13px] text-muted-foreground">
+              총 <span className="font-semibold text-foreground">{totalSessions.toLocaleString()}</span>개 세션
+            </p>
+
+            {/* Metric Cards */}
+            <MetricCards
+              viewerCount={viewerCount}
+              avgWatchTime={avgWatchTime}
+              avgWatchPercent={avgWatchPercent}
+              earlyDropRate={earlyDropRate}
+            />
+
+            {/* Charts — Pinterest-style 2-column masonry */}
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+              <div className="lg:col-span-2">
+                <DropOffChart data={bucketData} />
+              </div>
+              <div className="lg:col-span-2">
+                <PageUrlTable data={pageUrlData} />
+              </div>
+            </div>
+          </div>
         )}
-      </div>
+      </main>
     </div>
   )
 }
