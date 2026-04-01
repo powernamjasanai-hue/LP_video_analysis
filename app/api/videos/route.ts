@@ -49,7 +49,7 @@ export async function GET() {
 // POST: 영상 등록
 export async function POST(request: Request) {
   try {
-    const { video_id } = await request.json()
+    const { video_id, project_id } = await request.json()
 
     if (!video_id || !/^[a-zA-Z0-9_-]{11}$/.test(video_id)) {
       return Response.json({ error: 'invalid video_id' }, { status: 400 })
@@ -79,6 +79,7 @@ export async function POST(request: Request) {
         title: info.title,
         thumbnail_url: info.thumbnail_url,
         channel_name: info.channel_name,
+        project_id: project_id || null,
       })
       .select()
       .single()
